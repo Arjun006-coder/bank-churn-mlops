@@ -89,3 +89,33 @@ Whenever code is pushed to `main` or `master`, the workflow:
 3. Installs requirements from `requirements.txt`.
 4. Executes unit tests with `pytest`.
 5. Builds the Docker container image.
+
+---
+
+## 4. Candidate Model Retraining
+
+Task A prepares `data/incoming_churn.csv` and splits it into a retraining batch
+and a separate evaluation batch. Run this step only after the labelled
+`data/update_batch.csv` has been produced; Task C does not train on the raw
+incoming file or the reserved evaluation batch. Train a candidate from the
+original training partition and the update batch:
+
+```bash
+python -m monitoring.retrain
+```
+
+The script reproduces the notebook's stratified 80/20 split with
+`random_state=42`, clones `model.joblib`, and writes the new model to
+`models/candidate_model.joblib` with its row counts and training accuracy in
+`reports/retraining_summary.json`. It does not use the original test partition
+or overwrite the champion model.
+
+MLflow logging is optional. Configure a tracking server with
+`MLFLOW_TRACKING_URI`, then run:
+
+```bash
+python -m monitoring.retrain --mlflow
+```
+
+The run records training parameters, training accuracy, and the candidate
+artifact. Use `--tracking-uri` to specify a URI directly.
