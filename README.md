@@ -134,3 +134,29 @@ python -m monitoring.evaluate \
   --dataset path/to/evaluation.csv \
   --output reports/candidate_metrics.json
 ```
+
+## 6. Model Retraining (Task C) - Saurya Tripathi
+
+Task A prepares `data/incoming_churn.csv` and creates separate
+`data/update_batch.csv` and `data/evaluation_batch.csv` files. Retraining uses
+the update batch only; the evaluation batch is reserved for model comparison.
+Run the candidate retraining pipeline after Task A succeeds:
+
+```bash
+python -m monitoring.retrain
+```
+
+The script reproduces the notebook's stratified 80/20 split with
+`random_state=42`, combines the original training partition with the update
+batch, and fits a clone of the champion model. It saves the candidate to
+`models/candidate_model.joblib` and writes row counts and training accuracy to
+`reports/retraining_summary.json`. The existing `model.joblib` is not replaced.
+
+MLflow tracking is optional. Configure `MLFLOW_TRACKING_URI` and run:
+
+```bash
+python -m monitoring.retrain --mlflow
+```
+
+The MLflow run records training parameters, training accuracy, and the
+candidate model artifact.
