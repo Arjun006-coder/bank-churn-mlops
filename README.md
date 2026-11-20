@@ -1,46 +1,52 @@
-# Bank Customer Churn Prediction - ML API & CI/CD Pipeline
+# Bank Customer Churn Prediction - ML API & Monitoring Pipeline
 
-This repository implements an end-to-end Machine Learning deployment pipeline for the **Bank Customer Churn** case study (Kaggle `Churn_Modelling.csv` dataset).
+This repository implements an end-to-end machine-learning and monitoring
+pipeline for the **Bank Customer Churn** case study using the Kaggle
+`Churn_Modelling.csv` dataset.
 
 ## Features
-- **Model Training**: Random Forest Classifier with preprocessing pipeline (`StandardScaler`, `OneHotEncoder`, `SimpleImputer`) saved as `model.joblib`.
-- **FastAPI Backend**: High-performance REST API for real-time customer churn prediction.
-- **Automated Testing**: Test suite built with `pytest` covering health, prediction, and edge validation cases.
-- **Containerization**: Optimized `Dockerfile` based on `python:3.10-slim`.
-- **CI/CD Pipeline**: GitHub Actions workflow (`ci.yml`) automating dependencies installation, unit testing, and Docker image build.
+- **Model training**: A serialized scikit-learn pipeline in `model.joblib`.
+- **FastAPI backend**: REST endpoints for health checks and real-time churn predictions.
+- **Data preparation and evaluation**: Validation, stratified batch splitting, and model metrics.
+- **Candidate retraining and monitoring**: Train and compare a candidate without replacing the champion model.
+- **Automated testing**: `pytest` coverage for the API, data preparation, evaluation, retraining, and monitoring workflow.
+- **Containerization and CI**: Docker image build and GitHub Actions test/build workflow.
 
 ---
 
 ## Project Structure
 ```
-ca-2/
-├── .github/workflows/
-│   └── ci.yml               # GitHub Actions CI workflow
-├── notebooks/
-│   └── training.ipynb       # Model training notebook
-├── tests/
-│   └── test_api.py          # Pytest test cases
-├── .dockerignore            # Excluded files for Docker build
-├── .gitignore               # Git ignored files & environments
-├── Churn_Modelling.csv      # Kaggle dataset
-├── Dockerfile               # Container build configuration
-├── main.py                  # FastAPI application & prediction logic
-├── model.joblib             # Serialized ML pipeline model
-├── README.md                # Documentation & instructions
-└── requirements.txt         # Pinned Python dependencies
+.
+├── .github/workflows/ci.yml  # GitHub Actions tests and Docker build
+├── data/                     # Incoming, update, and evaluation CSV batches
+├── monitoring/
+│   ├── prepare_data.py       # Validate incoming data and split batches
+│   ├── evaluate.py           # Evaluate a model and write metrics
+│   ├── retrain.py            # Train a candidate model
+│   ├── quality_gate.py       # Compare champion and candidate metrics
+│   └── run_workflow.py       # Run the complete monitoring workflow
+├── notebooks/training.ipynb  # Model training notebook
+├── tests/                    # API and monitoring tests
+├── reports/                  # Validation, metrics, and workflow reports
+├── Churn_Modelling.csv       # Original labelled dataset
+├── main.py                   # FastAPI application
+├── model.joblib              # Deployed champion model
+├── Dockerfile                # API container configuration
+└── requirements.txt          # Python dependencies
 ```
 
 ---
 
-## 1. Local Testing with Pytest
-Run tests locally:
+## Run the Tests
+
+Run the complete test suite:
 ```bash
 python -m pytest -v
 ```
 
 ---
 
-## 2. Prepare an Incoming Data Batch
+## Task 1 - Data Preparation (Tejaswani Mishra)
 
 Place the labelled incoming batch at `data/incoming_churn.csv`. The batch must
 include `CustomerId`, the model input columns, and the `Exited` target. Provide
@@ -56,33 +62,130 @@ and overlap with old training records. It prints the row/column count and
 `Exited` class distribution. On success, it creates
 `data/update_batch.csv` and `data/evaluation_batch.csv` using a stratified
 80/20 split. It also writes `reports/data_validation.json` with the validation
-evidence, including failures.
-Use `--incoming Churn_Modelling.csv` to use the dataset included in this repo
-as the incoming batch instead of placing it at the default path. No output
-batches are created when validation fails.
+evidence, including failures. No output batches are created when validation
+fails.
+
+Use `--incoming Churn_Modelling.csv` to use the dataset included in this
+repository as the incoming batch instead of the default path.
 
 ---
 
-## 3. Docker Container Execution
+## Task 2 - Model Evaluation (Arjun Agrawal)
 
-### Build Docker Image
+The evaluation module reads a labelled CSV containing an `Exited` target,
+aligns input columns to the loaded model's feature schema, and writes accuracy,
+precision, recall, and F1-score (`f1_score`) to JSON. Use the same evaluation
+batch to compare the champion and candidate models.
+
+Evaluate the current champion:
 ```bash
-docker build -t bank-churn-ml-api:latest .
+python -m monitoring.evaluate \
+  --model model.joblib \
+  --dataset data/evaluation_batch.csv \
+  --output reports/champion_metrics.json
 ```
 
-### Run Docker Container
+Evaluate a retrained candidate:
 ```bash
+python -m monitoring.evaluate \
+  --model models/candidate_model.joblib \
+  --dataset data/evaluation_batch.csv \
+  --output reports/candidate_metrics.json
+```
+
+---
+
+## Task 3 - Model Retraining (Shaurya Tripathi)
+
+After Task 1 creates the update and evaluation batches, retraining uses only
+`data/update_batch.csv`; the evaluation batch is reserved for model comparison.
+The retraining script reproduces the notebook's stratified 80/20 split with
+`random_state=42`, combines the original training partition with the update
+batch, and fits a clone of the champion model:
+
+```bash
+python -m monitoring.retrain
+```
+
+It saves the candidate to `models/candidate_model.joblib` and writes row counts
+and training accuracy to `reports/retraining_summary.json`. The existing
+`model.joblib` is not replaced.
+
+MLflow tracking is optional. Configure `MLFLOW_TRACKING_URI` if needed and run:
+
+```bash
+python -m monitoring.retrain --mlflow
+```
+
+The MLflow run records training parameters, training accuracy, and the candidate
+model artifact.
+
+---
+
+## Task 4 (Task D) - Model Quality Gate (Sarvesh Singh)
+
+The quality gate compares champion and candidate metrics produced from the
+same evaluation batch. A candidate is eligible for **manual promotion** only
+when its F1-score improves by at least `0.01` and its recall does not drop by
+more than `0.02`. The decision is recorded in
+`reports/quality_gate_decision.json`; the deployed champion is never replaced
+automatically.
+
+```bash
+python -m monitoring.quality_gate \
+  --champion-report reports/champion_metrics.json \
+  --candidate-report reports/candidate_metrics.json \
+  --output reports/quality_gate_decision.json
+```
+
+---
+
+## Task 5 (Task E) - Workflow Integration and Demonstration (Sarvesh Singh)
+
+Run the end-to-end demonstration after the incoming data is ready:
+
+```bash
+python -m monitoring.run_workflow --new-data data/incoming_churn.csv
+```
+
+The workflow runs data preparation, champion evaluation, candidate retraining,
+candidate evaluation, and the quality gate in order. It writes the validation,
+evaluation, retraining, gate-decision, and workflow-execution reports under
+`reports/`, saves the candidate under `models/`, and verifies that the champion
+model remains unchanged.
+
+To run only the quality-gate demonstration, first ensure both evaluation
+reports already exist:
+
+```bash
+python -m monitoring.run_workflow --quality-gate-only
+```
+
+Run the focused quality-gate and workflow integration tests:
+
+```bash
+python -m pytest tests/test_monitoring.py -v
+```
+
+Incoming sample data in this repository is for demonstration; its evaluation
+scores should not be treated as evidence of real-world model performance.
+
+---
+
+## API Containerization and CI/CD
+
+Build and run the API container:
+```bash
+docker build -t bank-churn-ml-api:latest .
 docker run -d -p 8000:8000 --name bank-churn-app bank-churn-ml-api:latest
 ```
 
-### Test Docker API Endpoints
-
-#### Health Check
+Check that the model loaded and the API is healthy:
 ```bash
 curl http://localhost:8000/health
 ```
 
-#### Predict Churn (PowerShell)
+Make a prediction (PowerShell):
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:8000/predict" -Method Post -ContentType "application/json" -Body (@{
     CreditScore = 619
@@ -98,65 +201,10 @@ Invoke-RestMethod -Uri "http://localhost:8000/predict" -Method Post -ContentType
 } | ConvertTo-Json)
 ```
 
-#### Interactive Documentation
-Open in browser:
+Interactive API documentation:
 - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 - ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
----
-
-## 4. GitHub Actions CI/CD Pipeline
-Whenever code is pushed to `main` or `master`, the workflow:
-1. Checks out repository code.
-2. Sets up Python 3.10 with dependency caching.
-3. Installs requirements from `requirements.txt`.
-4. Executes unit tests with `pytest`.
-5. Builds the Docker container image.
-
-## 5. Evaluating Models
-The evaluation module reads a labelled CSV containing an `Exited` target, evaluates
-the requested model, and writes Accuracy, Precision, Recall, and F1-score to JSON.
-The evaluation CSV is supplied by Member 1; input columns are aligned to the
-loaded model's feature schema.
-
-Evaluate the current model:
-```bash
-python -m monitoring.evaluate \
-  --model model.joblib \
-  --dataset path/to/evaluation.csv \
-  --output reports/champion_metrics.json
-```
-
-Use the same module for a retrained candidate model:
-```bash
-python -m monitoring.evaluate \
-  --model path/to/candidate_model.joblib \
-  --dataset path/to/evaluation.csv \
-  --output reports/candidate_metrics.json
-```
-
-## 6. Model Retraining (Task C) - Saurya Tripathi
-
-Task A prepares `data/incoming_churn.csv` and creates separate
-`data/update_batch.csv` and `data/evaluation_batch.csv` files. Retraining uses
-the update batch only; the evaluation batch is reserved for model comparison.
-Run the candidate retraining pipeline after Task A succeeds:
-
-```bash
-python -m monitoring.retrain
-```
-
-The script reproduces the notebook's stratified 80/20 split with
-`random_state=42`, combines the original training partition with the update
-batch, and fits a clone of the champion model. It saves the candidate to
-`models/candidate_model.joblib` and writes row counts and training accuracy to
-`reports/retraining_summary.json`. The existing `model.joblib` is not replaced.
-
-MLflow tracking is optional. Configure `MLFLOW_TRACKING_URI` and run:
-
-```bash
-python -m monitoring.retrain --mlflow
-```
-
-The MLflow run records training parameters, training accuracy, and the
-candidate model artifact.
+The workflow in `.github/workflows/ci.yml` runs for pull requests and pushes to
+`main` or `master`. It sets up Python 3.10, installs `requirements.txt`, runs
+the test suite, and builds the Docker image.
