@@ -89,3 +89,25 @@ Whenever code is pushed to `main` or `master`, the workflow:
 3. Installs requirements from `requirements.txt`.
 4. Executes unit tests with `pytest`.
 5. Builds the Docker container image.
+
+## 4. Evaluating Models
+The evaluation module reads a labelled CSV containing an `Exited` target, evaluates
+the requested model, and writes Accuracy, Precision, Recall, and F1-score to JSON.
+The evaluation CSV is supplied by Member 1; input columns are aligned to the
+loaded model's feature schema.
+
+Evaluate the current model:
+```bash
+python -m monitoring.evaluate \
+  --model model.joblib \
+  --dataset path/to/evaluation.csv \
+  --output reports/champion_metrics.json
+```
+
+Use the same module for a retrained candidate model:
+```bash
+python -m monitoring.evaluate \
+  --model path/to/candidate_model.joblib \
+  --dataset path/to/evaluation.csv \
+  --output reports/candidate_metrics.json
+```
