@@ -1,0 +1,58 @@
+{
+  "incoming_file": "/workspaces/bank-churn-mlops/data/incoming_churn.csv",
+  "old_training_file": "Churn_Modelling.csv",
+  "old_training_file_found": true,
+  "rows": 1500,
+  "columns": 14,
+  "column_names": [
+    "RowNumber",
+    "CustomerId",
+    "Surname",
+    "CreditScore",
+    "Geography",
+    "Gender",
+    "Age",
+    "Tenure",
+    "Balance",
+    "NumOfProducts",
+    "HasCrCard",
+    "IsActiveMember",
+    "EstimatedSalary",
+    "Exited"
+  ],
+  "missing_values": {
+    "RowNumber": 0,
+    "CustomerId": 0,
+    "Surname": 0,
+    "CreditScore": 0,
+    "Geography": 0,
+    "Gender": 0,
+    "Age": 0,
+    "Tenure": 0,
+    "Balance": 0,
+    "NumOfProducts": 0,
+    "HasCrCard": 0,
+    "IsActiveMember": 0,
+    "EstimatedSalary": 0,
+    "Exited": 0
+  },
+  "duplicate_records": 0,
+  "duplicate_customer_ids": 0,
+  "overlapping_customer_ids": 0,
+  "old_training_missing_customer_ids": 0,
+  "old_training_duplicate_customer_ids": 0,
+  "class_distribution": {
+    "0": 1017,
+    "1": 483
+  },
+  "split": {
+    "update_file": "/workspaces/bank-churn-mlops/data/update_batch.csv",
+    "update_rows": 1200,
+    "evaluation_file": "/workspaces/bank-churn-mlops/data/evaluation_batch.csv",
+    "evaluation_rows": 300,
+    "test_size": 0.2,
+    "random_state": 42
+  },
+  "issues": [],
+  "validation_passed": true
+}

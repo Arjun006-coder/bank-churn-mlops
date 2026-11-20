@@ -40,7 +40,30 @@ python -m pytest -v
 
 ---
 
-## 2. Docker Container Execution
+## 2. Prepare an Incoming Data Batch
+
+Place the labelled incoming batch at `data/incoming_churn.csv`. The batch must
+include `CustomerId`, the model input columns, and the `Exited` target. Provide
+a separate CSV of previously used training records so incoming `CustomerId`
+values can be checked for overlap:
+
+```bash
+python monitoring/prepare_data.py --old-training path/to/old_training.csv
+```
+
+The script validates required columns, missing values, duplicate rows and IDs,
+and overlap with old training records. It prints the row/column count and
+`Exited` class distribution. On success, it creates
+`data/update_batch.csv` and `data/evaluation_batch.csv` using a stratified
+80/20 split. It also writes `reports/data_validation.json` with the validation
+evidence, including failures.
+Use `--incoming Churn_Modelling.csv` to use the dataset included in this repo
+as the incoming batch instead of placing it at the default path. No output
+batches are created when validation fails.
+
+---
+
+## 3. Docker Container Execution
 
 ### Build Docker Image
 ```bash
@@ -82,7 +105,7 @@ Open in browser:
 
 ---
 
-## 3. GitHub Actions CI/CD Pipeline
+## 4. GitHub Actions CI/CD Pipeline
 Whenever code is pushed to `main` or `master`, the workflow:
 1. Checks out repository code.
 2. Sets up Python 3.10 with dependency caching.
@@ -90,32 +113,24 @@ Whenever code is pushed to `main` or `master`, the workflow:
 4. Executes unit tests with `pytest`.
 5. Builds the Docker container image.
 
----
+## 5. Evaluating Models
+The evaluation module reads a labelled CSV containing an `Exited` target, evaluates
+the requested model, and writes Accuracy, Precision, Recall, and F1-score to JSON.
+The evaluation CSV is supplied by Member 1; input columns are aligned to the
+loaded model's feature schema.
 
-## 4. Candidate Model Retraining
-
-Task A prepares `data/incoming_churn.csv` and splits it into a retraining batch
-and a separate evaluation batch. Run this step only after the labelled
-`data/update_batch.csv` has been produced; Task C does not train on the raw
-incoming file or the reserved evaluation batch. Train a candidate from the
-original training partition and the update batch:
-
+Evaluate the current model:
 ```bash
-python -m monitoring.retrain
+python -m monitoring.evaluate \
+  --model model.joblib \
+  --dataset path/to/evaluation.csv \
+  --output reports/champion_metrics.json
 ```
 
-The script reproduces the notebook's stratified 80/20 split with
-`random_state=42`, clones `model.joblib`, and writes the new model to
-`models/candidate_model.joblib` with its row counts and training accuracy in
-`reports/retraining_summary.json`. It does not use the original test partition
-or overwrite the champion model.
-
-MLflow logging is optional. Configure a tracking server with
-`MLFLOW_TRACKING_URI`, then run:
-
+Use the same module for a retrained candidate model:
 ```bash
-python -m monitoring.retrain --mlflow
+python -m monitoring.evaluate \
+  --model path/to/candidate_model.joblib \
+  --dataset path/to/evaluation.csv \
+  --output reports/candidate_metrics.json
 ```
-
-The run records training parameters, training accuracy, and the candidate
-artifact. Use `--tracking-uri` to specify a URI directly.
