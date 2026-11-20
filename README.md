@@ -40,7 +40,30 @@ python -m pytest -v
 
 ---
 
-## 2. Docker Container Execution
+## 2. Prepare an Incoming Data Batch
+
+Place the labelled incoming batch at `data/incoming_churn.csv`. The batch must
+include `CustomerId`, the model input columns, and the `Exited` target. Provide
+a separate CSV of previously used training records so incoming `CustomerId`
+values can be checked for overlap:
+
+```bash
+python monitoring/prepare_data.py --old-training path/to/old_training.csv
+```
+
+The script validates required columns, missing values, duplicate rows and IDs,
+and overlap with old training records. It prints the row/column count and
+`Exited` class distribution. On success, it creates
+`data/update_batch.csv` and `data/evaluation_batch.csv` using a stratified
+80/20 split. It also writes `reports/data_validation.json` with the validation
+evidence, including failures.
+Use `--incoming Churn_Modelling.csv` to use the dataset included in this repo
+as the incoming batch instead of placing it at the default path. No output
+batches are created when validation fails.
+
+---
+
+## 3. Docker Container Execution
 
 ### Build Docker Image
 ```bash
@@ -82,7 +105,7 @@ Open in browser:
 
 ---
 
-## 3. GitHub Actions CI/CD Pipeline
+## 4. GitHub Actions CI/CD Pipeline
 Whenever code is pushed to `main` or `master`, the workflow:
 1. Checks out repository code.
 2. Sets up Python 3.10 with dependency caching.
