@@ -113,7 +113,7 @@ Whenever code is pushed to `main` or `master`, the workflow:
 4. Executes unit tests with `pytest`.
 5. Builds the Docker container image.
 
-## 4. Evaluating Models
+## 5. Evaluating Models
 The evaluation module reads a labelled CSV containing an `Exited` target, evaluates
 the requested model, and writes Accuracy, Precision, Recall, and F1-score to JSON.
 The evaluation CSV is supplied by Member 1; input columns are aligned to the
